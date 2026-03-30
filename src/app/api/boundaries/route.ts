@@ -23,6 +23,7 @@ async function fetchBox(
   layerName: string,
   box: string,
   apiKey: string | undefined,
+  referer: string,
 ): Promise<VWorldResponse> {
   const url =
     `https://api.vworld.kr/req/data` +
@@ -35,9 +36,7 @@ async function fetchBox(
     `&crs=EPSG:4326` +
     `&maxFeatures=${PAGE_SIZE}`;
 
-  const res = await fetch(url, {
-    headers: { Referer: "http://localhost:3000" },
-  });
+  const res = await fetch(url, { headers: { Referer: referer } });
   const text = await res.text();
   return JSON.parse(text) as VWorldResponse;
 }
@@ -55,7 +54,10 @@ export async function GET(request: NextRequest) {
   }
 
   const layerName = LAYER_MAP[layer] ?? LAYER_MAP.dong;
-  const apiKey = process.env.NEXT_PUBLIC_VWORLD_API_KEY;
+  const apiKey = process.env.VWORLD_API_KEY;
+
+  const host = request.headers.get("host") ?? "localhost:3000";
+  const referer = host.startsWith("localhost") ? `http://${host}` : `https://${host}`;
 
   try {
     let allFeatures: unknown[];
@@ -64,8 +66,8 @@ export async function GET(request: NextRequest) {
     if (layer === "sido") {
       // VWorld 페이지네이션 미지원 → 남북 BOX 분할 병렬 요청 후 ID 중복 제거
       const [north, south] = await Promise.all([
-        fetchBox(layerName, "124,36,132,39", apiKey), // 북부
-        fetchBox(layerName, "124,33,132,36", apiKey), // 남부
+        fetchBox(layerName, "124,36,132,39", apiKey, referer), // 북부
+        fetchBox(layerName, "124,33,132,36", apiKey, referer), // 남부
       ]);
       baseResponse = north;
 
@@ -80,7 +82,7 @@ export async function GET(request: NextRequest) {
         return true;
       });
     } else {
-      baseResponse = await fetchBox(layerName, box as string, apiKey);
+      baseResponse = await fetchBox(layerName, box as string, apiKey, referer);
       allFeatures =
         baseResponse?.response?.result?.featureCollection?.features ?? [];
     }
