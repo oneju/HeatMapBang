@@ -10,6 +10,52 @@ declare global {
   }
 }
 
+const LAYER_MAP: Record<string, string> = {
+  sido: "LT_C_ADSIDO_INFO",
+  sigungu: "LT_C_ADSIGG_INFO",
+  dong: "LT_C_ADEMD_INFO",
+};
+
+const API_KEY = process.env.NEXT_PUBLIC_VWORLD_API_KEY;
+const PAGE_SIZE = 10;
+
+async function fetchBox(layerName: string, box: string) {
+  const url =
+    `https://api.vworld.kr/req/data` +
+    `?service=data&request=GetFeature` +
+    `&data=${layerName}` +
+    `&geomFilter=BOX(${box})` +
+    `&format=json&key=${API_KEY}&crs=EPSG:4326` +
+    `&maxFeatures=${PAGE_SIZE}`;
+  const res = await fetch(url);
+  return res.json();
+}
+
+async function fetchVWorld(layer: string, box: string) {
+  const layerName = LAYER_MAP[layer] ?? LAYER_MAP.dong;
+
+  if (layer === "sido") {
+    const [north, south] = await Promise.all([
+      fetchBox(layerName, "124,36,132,39"),
+      fetchBox(layerName, "124,33,132,36"),
+    ]);
+    const seen = new Set<string>();
+    const features = [
+      ...(north?.response?.result?.featureCollection?.features ?? []),
+      ...(south?.response?.result?.featureCollection?.features ?? []),
+    ].filter((f: { id?: string }) => {
+      const id = f.id ?? JSON.stringify(f);
+      if (seen.has(id)) return false;
+      seen.add(id);
+      return true;
+    });
+    north.response.result.featureCollection.features = features;
+    return north;
+  }
+
+  return fetchBox(layerName, box);
+}
+
 export default function NaverMap() {
   const mapRef = useRef<HTMLDivElement>(null);
   const mapInstanceRef = useRef<any>(null);
@@ -52,8 +98,7 @@ export default function NaverMap() {
       const box = `${sw.lng() - lngPad},${sw.lat() - latPad},${ne.lng() + lngPad},${ne.lat() + latPad}`;
 
       try {
-        const res = await fetch(`/api/boundaries?box=${box}&layer=${layer}`);
-        const json = await res.json();
+        const json = await fetchVWorld(layer, box);
         console.log(json);
 
         const features = json?.response?.result?.featureCollection?.features;
