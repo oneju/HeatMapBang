@@ -1,9 +1,9 @@
 import { NextRequest, NextResponse } from "next/server";
 
 const LAYER_MAP: Record<string, string> = {
-  sido: "LT_C_ADSIDO_INFO",    // 시도 (zoom 7-9)
+  sido: "LT_C_ADSIDO_INFO", // 시도 (zoom 7-9)
   sigungu: "LT_C_ADSIGG_INFO", // 시군구 (zoom 10-12)
-  dong: "LT_C_ADEMD_INFO",     // 읍면동 (zoom 13+)
+  dong: "LT_C_ADEMD_INFO", // 읍면동 (zoom 13+)
 };
 
 const PAGE_SIZE = 10;
@@ -35,7 +35,9 @@ async function fetchBox(
     `&crs=EPSG:4326` +
     `&maxFeatures=${PAGE_SIZE}`;
 
-  const res = await fetch(url, { headers: { Referer: "http://localhost:3000" } });
+  const res = await fetch(url, {
+    headers: { Referer: "http://localhost:3000" },
+  });
   const text = await res.text();
   return JSON.parse(text) as VWorldResponse;
 }
@@ -46,11 +48,14 @@ export async function GET(request: NextRequest) {
   const layer = searchParams.get("layer") ?? "dong";
 
   if (!box && layer !== "sido") {
-    return NextResponse.json({ error: "box parameter required" }, { status: 400 });
+    return NextResponse.json(
+      { error: "box parameter required" },
+      { status: 400 },
+    );
   }
 
   const layerName = LAYER_MAP[layer] ?? LAYER_MAP.dong;
-  const apiKey = process.env.VWORLD_API_KEY;
+  const apiKey = process.env.NEXT_PUBLIC_VWORLD_API_KEY;
 
   try {
     let allFeatures: unknown[];
@@ -76,7 +81,8 @@ export async function GET(request: NextRequest) {
       });
     } else {
       baseResponse = await fetchBox(layerName, box as string, apiKey);
-      allFeatures = baseResponse?.response?.result?.featureCollection?.features ?? [];
+      allFeatures =
+        baseResponse?.response?.result?.featureCollection?.features ?? [];
     }
 
     const fc = baseResponse.response?.result?.featureCollection;
