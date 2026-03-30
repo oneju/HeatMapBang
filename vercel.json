@@ -1,0 +1,7 @@
+{
+  "functions": {
+    "src/app/api/boundaries/route.ts": {
+      "regions": ["icn1"]
+    }
+  }
+}
