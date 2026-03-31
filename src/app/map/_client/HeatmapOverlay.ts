@@ -38,10 +38,18 @@ export function createHeatmapOverlayClass(navermaps: typeof naver.maps) {
       dong: null,
     };
     private _rafId: number | null = null;
-    private _onClickFeature: (feature: GeoFeature, layer: LayerName) => void;
+    private _onClickFeature: (
+      feature: GeoFeature,
+      layer: LayerName,
+      clickedLatLng: naver.maps.LatLng,
+    ) => void;
 
     constructor(
-      onClickFeature: (feature: GeoFeature, layer: LayerName) => void,
+      onClickFeature: (
+        feature: GeoFeature,
+        layer: LayerName,
+        clickedLatLng: naver.maps.LatLng,
+      ) => void,
     ) {
       super();
       this._onClickFeature = onClickFeature;
