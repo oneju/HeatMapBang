@@ -1,36 +1,27 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# 행정 구역 구분지도 🗺️
 
-## Getting Started
+테스트 화면: [힛맵뱅](https://heat-map-bang.vercel.app/map)
 
-First, run the development server:
+## #navermap, #vworldapi
 
-```bash
-npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
-```
+- 지도 화면 상의 행정 구역을 색상으로 구분하여 표시
+- vworld api를 통해 행정 구역 별 구분 위치 통신
+- zoom 레벨이 높으면 클러스터 표시
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+## #d3
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+- d3 라이브러리로 heatmapping (지역 구분) - 랜덤 색상
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+## #cluster
 
-## Learn More
+- zoom level이 올라가면 지도 위 클러스터 표시
 
-To learn more about Next.js, take a look at the following resources:
+## #pin
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+- zoom level이 13이상 일 경우 핀 표시
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+### 클러스터 내용
 
-## Deploy on Vercel
+- 행정 구역에 해당하는 정보 노출
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
-
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+### 진행상황

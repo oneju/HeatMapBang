@@ -8,6 +8,40 @@ const LAYER_MAP: Record<string, string> = {
 
 const PAGE_SIZE = 10;
 
+function roundPair(pair: number[]): number[] {
+  return [Math.round(pair[0] * 1e5) / 1e5, Math.round(pair[1] * 1e5) / 1e5];
+}
+
+function simplifyFeature(f: unknown): unknown {
+  if (!f || typeof f !== "object") return f;
+  const feat = f as Record<string, unknown>;
+  const geom = feat.geometry as { type?: string; coordinates?: unknown } | null;
+  if (!geom) return f;
+  if (geom.type === "Polygon") {
+    return {
+      ...feat,
+      geometry: {
+        ...geom,
+        coordinates: (geom.coordinates as number[][][]).map((ring) =>
+          ring.map(roundPair),
+        ),
+      },
+    };
+  }
+  if (geom.type === "MultiPolygon") {
+    return {
+      ...feat,
+      geometry: {
+        ...geom,
+        coordinates: (geom.coordinates as number[][][][]).map((poly) =>
+          poly.map((ring) => ring.map(roundPair)),
+        ),
+      },
+    };
+  }
+  return f;
+}
+
 type VWorldResponse = {
   response?: {
     result?: {
@@ -18,6 +52,8 @@ type VWorldResponse = {
     };
   };
 };
+
+const FETCH_TIMEOUT_MS = 5000;
 
 async function fetchBox(
   layerName: string,
@@ -36,7 +72,10 @@ async function fetchBox(
     `&crs=EPSG:4326` +
     `&maxFeatures=${PAGE_SIZE}`;
 
-  const res = await fetch(url, { headers: { Referer: referer } });
+  const res = await fetch(url, {
+    headers: { Referer: referer },
+    signal: AbortSignal.timeout(FETCH_TIMEOUT_MS),
+  });
   const text = await res.text();
   return JSON.parse(text) as VWorldResponse;
 }
@@ -57,7 +96,9 @@ export async function GET(request: NextRequest) {
   const apiKey = process.env.VWORLD_API_KEY;
 
   const host = request.headers.get("host") ?? "localhost:3000";
-  const referer = host.startsWith("localhost") ? `http://${host}` : `https://${host}`;
+  const referer = host.startsWith("localhost")
+    ? `http://${host}`
+    : `https://${host}`;
 
   try {
     let allFeatures: unknown[];
@@ -86,9 +127,10 @@ export async function GET(request: NextRequest) {
       allFeatures =
         baseResponse?.response?.result?.featureCollection?.features ?? [];
     }
+    const simplified = allFeatures.map(simplifyFeature);
 
     const fc = baseResponse.response?.result?.featureCollection;
-    if (fc) fc.features = allFeatures;
+    if (fc) fc.features = simplified;
     return NextResponse.json(baseResponse);
   } catch (err) {
     console.error("VWorld fetch error:", err);

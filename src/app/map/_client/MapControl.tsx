@@ -44,7 +44,7 @@ export default function MapControl({ map }: Props) {
               background: #ff0000;
               border: 3px solid #fff;
               border-radius: 50%;
-              box-shadow: 0 0 0 3px rgba(37,99,235,0.4);
+              box-shadow: 0 0 0 3px rgba(255,0,0,0.4);
             "></div>`,
             anchor: new window.naver.maps.Point(8, 8),
           },

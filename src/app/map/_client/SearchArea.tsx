@@ -5,7 +5,7 @@ import cx from "classnames";
 import { NaverMapInstance } from "./MapControl";
 
 interface NaverMarker {
-  morph(latLng: unknown, zoom: number): void;
+  setMap(map: unknown): void;
 }
 interface Props {
   map?: NaverMapInstance;
@@ -27,6 +27,7 @@ export default function SearchArea({ map }: Props) {
 
           const latLng = new window.naver.maps.LatLng(y, x);
 
+          myMarkerRef.current?.setMap(null);
           myMarkerRef.current = new window.naver.maps.Marker({
             map,
             position: latLng,
@@ -53,7 +54,7 @@ export default function SearchArea({ map }: Props) {
     <>
       <div className={cx("input-group")}>
         <input
-          placeholder={"주소를 입력하세요"}
+          placeholder={"도로명 주소를 입력하세요"}
           value={keyword}
           autoComplete="off"
           onChange={(e) => {

@@ -1,4 +1,8 @@
-import NaverMap from "./_client/NaverMap";
+"use client";
+import dynamic from "next/dynamic";
+import "./style.css";
+
+const NaverMap = dynamic(() => import("./_client/NaverMap"), { ssr: false });
 
 export default function MapPage() {
   return (
