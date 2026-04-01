@@ -14,7 +14,9 @@
 // 나중에 실제 API로 교체하세요
 const MOCK_DATA: Record<string, number> = {};
 
-export const regionValueMap = (arr: Record<string, unknown>[]): Map<string, number> => {
+export const regionValueMap = (
+  arr: Record<string, unknown>[],
+): Map<string, number> => {
   const data_set: Record<string, number> = {};
   arr.forEach((v) => {
     const keys = [...Object.keys(v)];
@@ -32,7 +34,7 @@ export const regionValueMap = (arr: Record<string, unknown>[]): Map<string, numb
 // ─── 색상 단계 ────────────────────────────────────────────────────────────────
 // 값이 없는 지역: 회색
 // 값 있는 지역: 낮음(연함) → 높음(진함) 5단계
-const STEPS = ["#FFF5E0", "#FDBA74", "#F97316", "#EA580C", "#D84315"] as const;
+const STEPS = ["#D3D3D3", "#FDBA74", "#F97316", "#EA580C", "#D84315"] as const;
 const NO_DATA_COLOR = "#D3D3D3";
 
 /**

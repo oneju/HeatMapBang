@@ -266,7 +266,7 @@ export function createHeatmapOverlayClass(navermaps: typeof naver.maps) {
           point(lng: number, lat: number) {
             const pt = proj.fromCoordToOffset(new naver.maps.LatLng(lat, lng));
 
-            s.point(pt.x.toFixed(1), pt.y.toFixed(1));
+            s.point(~~(pt.x * 10) / 10, ~~(pt.y * 10) / 10);
           },
           lineStart() {
             s.lineStart();

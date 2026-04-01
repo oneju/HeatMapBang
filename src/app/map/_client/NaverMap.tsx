@@ -1,6 +1,13 @@
 "use client";
 
-import { useRef, useCallback, useState, useEffect, Suspense } from "react";
+import {
+  useRef,
+  useCallback,
+  useState,
+  useEffect,
+  Suspense,
+  useLayoutEffect,
+} from "react";
 import { useQuery } from "@tanstack/react-query";
 import MapControl, { NaverMapInstance } from "./MapControl";
 import SearchArea from "./SearchArea";
@@ -48,20 +55,24 @@ function NaverMapInner() {
     ],
     queryFn: async ({ signal }) => {
       const { box, layer } = mapParams!;
+
       const res = await fetch(`/api/boundaries?box=${box}&layer=${layer}`, {
-        signal,
+        headers: { "Content-Type": "application/json" },
+        next: { tags: ["get-polygon", box, layer] },
+        credentials: "include",
+        keepalive: false,
       });
       const json = await res.json();
       console.log(json, "---json");
       return (json?.response?.result?.featureCollection?.features ??
         []) as GeoFeature[];
     },
-    enabled: !!mapParams,
+    enabled: !!mapParams && mapParams?.layer === "sido",
     staleTime: Infinity, // 같은 box+layer는 재요청하지 않음
   });
 
   // ── D3 overlay에 데이터 반영 ────────────────────────────────────────────────
-  useEffect(() => {
+  useLayoutEffect(() => {
     const overlay = overlayRef.current;
     if (!features || !mapParams || !overlay) return;
 
@@ -132,8 +143,8 @@ function NaverMapInner() {
     ) => {
       const geom = feature.geometry;
       if (!geom) return;
-
-      const zoomTarget = layer === "sido" ? 11 : layer === "sigungu" ? 14 : 14;
+      const zoom = map.getZoom();
+      const zoomTarget = Math.min(zoom + 3, 18);
 
       // MultiPolygon/Polygon 모두 첫 번째 ring의 bbox 중심으로 계산
       const firstRing =

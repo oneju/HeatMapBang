@@ -8,22 +8,56 @@ const LAYER_MAP: Record<string, string> = {
 
 const PAGE_SIZE = 10;
 
-function roundPair(pair: number[]): number[] {
-  return [Math.round(pair[0] * 1e5) / 1e5, Math.round(pair[1] * 1e5) / 1e5];
+// 레이어별 좌표 정밀도: sido는 111m 단위면 충분, 세부 레이어는 정밀하게
+const PRECISION: Record<string, number> = {
+  sido: 1e3,
+  sigungu: 1e4,
+  dong: 1e5,
+};
+
+function roundPair(pair: number[], precision: number): number[] {
+  return [
+    Math.round(pair[0] * precision) / precision,
+    Math.round(pair[1] * precision) / precision,
+  ];
 }
 
-function simplifyFeature(f: unknown): unknown {
+// 반올림 후 연속 중복 꼭짓점 제거
+function dedupeRing(ring: number[][]): number[][] {
+  return ring.filter((pt, i) => {
+    if (i === 0) return true;
+    const prev = ring[i - 1];
+    return pt[0] !== prev[0] || pt[1] !== prev[1];
+  });
+}
+
+// 코드/이름 관련 필드만 유지, 나머지 제거
+function stripProperties(props: unknown): Record<string, unknown> {
+  if (!props || typeof props !== "object") return {};
+  const result: Record<string, unknown> = {};
+  for (const [k, v] of Object.entries(props as Record<string, unknown>)) {
+    const lower = k.toLowerCase();
+    if (lower === "id" || lower.includes("cd") || lower.includes("nm")) {
+      result[k] = v;
+    }
+  }
+  return result;
+}
+
+function simplifyFeature(f: unknown, precision: number): unknown {
   if (!f || typeof f !== "object") return f;
   const feat = f as Record<string, unknown>;
   const geom = feat.geometry as { type?: string; coordinates?: unknown } | null;
-  if (!geom) return f;
+  const properties = stripProperties(feat.properties);
+  if (!geom) return { ...feat, properties };
   if (geom.type === "Polygon") {
     return {
       ...feat,
+      properties,
       geometry: {
         ...geom,
         coordinates: (geom.coordinates as number[][][]).map((ring) =>
-          ring.map(roundPair),
+          dedupeRing(ring.map((p) => roundPair(p, precision))),
         ),
       },
     };
@@ -31,15 +65,18 @@ function simplifyFeature(f: unknown): unknown {
   if (geom.type === "MultiPolygon") {
     return {
       ...feat,
+      properties,
       geometry: {
         ...geom,
         coordinates: (geom.coordinates as number[][][][]).map((poly) =>
-          poly.map((ring) => ring.map(roundPair)),
+          poly.map((ring) =>
+            dedupeRing(ring.map((p) => roundPair(p, precision))),
+          ),
         ),
       },
     };
   }
-  return f;
+  return { ...feat, properties };
 }
 
 type VWorldResponse = {
@@ -127,7 +164,8 @@ export async function GET(request: NextRequest) {
       allFeatures =
         baseResponse?.response?.result?.featureCollection?.features ?? [];
     }
-    const simplified = allFeatures.map(simplifyFeature);
+    const precision = PRECISION[layer] ?? PRECISION.dong;
+    const simplified = allFeatures.map((f) => simplifyFeature(f, precision));
 
     const fc = baseResponse.response?.result?.featureCollection;
     if (fc) fc.features = simplified;
