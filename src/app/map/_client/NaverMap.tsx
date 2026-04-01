@@ -128,7 +128,7 @@ function NaverMapInner() {
     const onClickFeature = (
       feature: GeoFeature,
       layer: string,
-      clickedLatLng?: object,
+      clickedLatLng: naver.maps.LatLng,
     ) => {
       const geom = feature.geometry;
       if (!geom) return;

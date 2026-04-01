@@ -191,7 +191,9 @@ export function createHeatmapOverlayClass(navermaps: typeof naver.maps) {
 
           const projection = this.getProjection();
           const pixel = new naver.maps.Point(event.offsetX, event.offsetY);
-          const clickedLatLng = projection.fromOffsetToCoord(pixel);
+          const clickedLatLng = projection.fromOffsetToCoord(
+            pixel,
+          ) as naver.maps.LatLng;
           event.currentTarget.style.cursor = "pointer";
 
           // 이동 거리가 짧을 때만(예: 5px 미만) 클릭 함수 실행

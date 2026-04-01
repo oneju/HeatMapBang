@@ -14,15 +14,15 @@
 // 나중에 실제 API로 교체하세요
 const MOCK_DATA: Record<string, number> = {};
 
-export const regionValueMap = (arr: object[]): Map<string, number> => {
-  const data_set = {};
+export const regionValueMap = (arr: Record<string, unknown>[]): Map<string, number> => {
+  const data_set: Record<string, number> = {};
   arr.forEach((v) => {
     const keys = [...Object.keys(v)];
     const cd = keys.find((k) => k.includes("cd"));
     const nm = keys.find((k) => k.includes("kor_nm"));
 
     if (cd && nm) {
-      data_set[v[nm]] = Number(v[cd]);
+      data_set[String(v[nm])] = Number(v[cd]);
     }
   });
 

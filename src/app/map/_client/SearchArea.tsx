@@ -29,7 +29,7 @@ export default function SearchArea({ map }: Props) {
 
           myMarkerRef.current?.setMap(null);
           myMarkerRef.current = new window.naver.maps.Marker({
-            map,
+            map: map as unknown as naver.maps.Map,
             position: latLng,
             icon: {
               content: `<div style="
