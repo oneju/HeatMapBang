@@ -66,7 +66,7 @@ function NaverMapInner() {
     if (!features || !mapParams || !overlay) return;
 
     const { layer } = mapParams;
-    if (layer === "dong") {
+    if (layer !== "sido") {
       overlay.onRemove();
       return;
     }
@@ -128,7 +128,7 @@ function NaverMapInner() {
     const onClickFeature = (
       feature: GeoFeature,
       layer: string,
-      clickedLatLng: naver.maps.LatLng,
+      clickedLatLng?: object,
     ) => {
       const geom = feature.geometry;
       if (!geom) return;
