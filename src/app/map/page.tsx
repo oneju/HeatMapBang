@@ -1,6 +1,6 @@
 "use client";
 import dynamic from "next/dynamic";
-import "./style.css";
+import "./style.scss";
 
 const NaverMap = dynamic(() => import("./_client/NaverMap"), { ssr: false });
 

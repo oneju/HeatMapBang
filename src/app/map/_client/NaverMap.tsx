@@ -20,6 +20,7 @@ import {
 } from "react-naver-maps";
 import { regionValueMap, buildColorScale, REGION_NAME_KEY } from "./regionData";
 import { createHeatmapOverlayClass, GeoFeature } from "./HeatmapOverlay";
+import { createClusterOverlayClass, RealtorPoint, BuildingPin } from "./ClusterOverlay";
 
 // dynamic import가 완료되는 즉시 Naver 스크립트 로딩 시작 (직렬 → 병렬)
 preloadNavermaps({
@@ -32,16 +33,25 @@ function NaverMapInner() {
   const overlayRef = useRef<InstanceType<
     ReturnType<typeof createHeatmapOverlayClass>
   > | null>(null);
+  const clusterOverlayRef = useRef<InstanceType<
+    ReturnType<typeof createClusterOverlayClass>
+  > | null>(null);
   const [mapInstance, setMapInstance] = useState<NaverMapInstance | null>(null);
   const [mapParams, setMapParams] = useState<{
     box: string;
     layer: string;
   } | null>(null);
+  // 지도 중심 좌표 + zoom (소수점 2자리 반올림 → ~1km 단위 캐시)
+  const [mapCenter, setMapCenter] = useState<{
+    lat: number;
+    lng: number;
+    zoom: number;
+  } | null>(null);
   const navermaps = useNavermaps();
 
   const getLayer = (zoom: number): string | null => {
     if (zoom >= 13) return "dong";
-    if (zoom >= 10) return "sigungu";
+    if (zoom >= 11) return "sigungu";
     if (zoom >= 7) return "sido";
     return null;
   };
@@ -71,14 +81,33 @@ function NaverMapInner() {
     staleTime: Infinity, // 같은 box+layer는 재요청하지 않음
   });
 
+  // ── 중개사 데이터 fetch (프록시 서버) ────────────────────────────────────────
+  const { data: realtorData } = useQuery({
+    queryKey: ["realtors", mapCenter?.lat, mapCenter?.lng, mapCenter?.zoom],
+    queryFn: async () => {
+      const { lat, lng, zoom } = mapCenter!;
+      const res = await fetch(
+        `/api/realtors?lat=${lat}&lng=${lng}&zoom=${zoom}&lv=${zoom}`,
+      );
+      const json = await res.json();
+      console.log(json, "--- realtors");
+      return json.data as (RealtorPoint | BuildingPin)[];
+    },
+    enabled: !!mapCenter,
+    staleTime: 0,
+  });
+
   // ── D3 overlay에 데이터 반영 ────────────────────────────────────────────────
   useLayoutEffect(() => {
     const overlay = overlayRef.current;
-    if (!features || !mapParams || !overlay) return;
+    console.log(mapParams, "layer ----", !!overlay);
+    if (!mapParams || !overlay) return;
 
     const { layer } = mapParams;
-    if (layer !== "sido") {
-      overlay.onRemove();
+
+    if (!features || layer !== "sido") {
+      console.log("sido ??????");
+      overlay.clearLayer("sido");
       return;
     }
     const nameKey = REGION_NAME_KEY[layer].toLocaleLowerCase();
@@ -97,24 +126,40 @@ function NaverMapInner() {
     );
   }, [features, mapParams]);
 
+  // ── realtorData → ClusterOverlay 반영 ──────────────────────────────────────
+  useEffect(() => {
+    if (!mapParams || !realtorData) return;
+    const { layer } = mapParams;
+    if (layer === "sido") {
+      clusterOverlayRef.current?.clear();
+      return;
+    }
+    if (layer !== "sido") clusterOverlayRef.current?.setPoints(realtorData);
+  }, [realtorData]);
+
   // ── 언마운트 cleanup ────────────────────────────────────────────────────────
   useEffect(() => {
     return () => {
       console.log("[NaverMap] unmount, removing overlay");
       overlayRef.current?.setMap(null);
+      clusterOverlayRef.current?.setMap(null);
     };
   }, []);
 
-  // ── 지도 이동/줌 시 mapParams 업데이트 ────────────────────────────────────
+  // ── 지도 이동/줌 시 mapParams + mapCenter 업데이트 ────────────────────────
   const updateMapParams = useCallback((map: naver.maps.Map) => {
     const zoom = map.getZoom();
     const layer = getLayer(zoom);
+
+    console.log(zoom, "-----zooooooooo");
 
     if (!layer) {
       overlayRef.current?.clearLayer("sido");
       overlayRef.current?.clearLayer("sigungu");
       overlayRef.current?.clearLayer("dong");
+      clusterOverlayRef.current?.clear();
       setMapParams(null);
+      setMapCenter(null);
       return;
     }
 
@@ -125,8 +170,15 @@ function NaverMapInner() {
     const lngPad = (ne.lng() - sw.lng()) * 0.05;
     const latPad = (ne.lat() - sw.lat()) * 0.05;
     const box = `${sw.lng() - lngPad},${sw.lat() - latPad},${ne.lng() + lngPad},${ne.lat() + latPad}`;
-
     setMapParams({ box, layer });
+
+    // 소수점 2자리 반올림 → 약 1km 단위로 캐시 (너무 잦은 재요청 방지)
+    const center = map.getCenter() as naver.maps.LatLng;
+    setMapCenter({
+      lat: Math.round(center.lat() * 100) / 100,
+      lng: Math.round(center.lng() * 100) / 100,
+      zoom,
+    });
   }, []);
 
   const handleInit = useCallback(() => {
@@ -137,14 +189,16 @@ function NaverMapInner() {
 
     // 폴리곤 클릭 시 해당 지역 중심으로 zoom
     const onClickFeature = (
-      feature: GeoFeature,
-      layer: string,
+      feature: GeoFeature | null,
+      layer: string | null,
       clickedLatLng: naver.maps.LatLng,
     ) => {
+      const zoom = map.getZoom();
+      const zoomTarget = Math.min(zoom + (!!feature ? 4 : 3), 18);
+      if (clickedLatLng) return map.morph(clickedLatLng, zoomTarget);
+      if (!feature) return;
       const geom = feature.geometry;
       if (!geom) return;
-      const zoom = map.getZoom();
-      const zoomTarget = Math.min(zoom + 3, 18);
 
       // MultiPolygon/Polygon 모두 첫 번째 ring의 bbox 중심으로 계산
       const firstRing =
@@ -164,6 +218,11 @@ function NaverMapInner() {
     const overlay = new HeatmapOverlay(onClickFeature);
     overlay.setMap(map);
     overlayRef.current = overlay;
+
+    const ClusterOverlay = createClusterOverlayClass(navermaps);
+    const clusterOverlay = new ClusterOverlay(onClickFeature);
+    clusterOverlay.setMap(map);
+    clusterOverlayRef.current = clusterOverlay;
 
     updateMapParams(map);
   }, [navermaps, updateMapParams]);
