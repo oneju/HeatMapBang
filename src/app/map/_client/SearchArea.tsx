@@ -34,7 +34,7 @@ export default function SearchArea({ map }: Props) {
             icon: {
               content: `
                 <style>
-                  @keyframes marker-pulse {
+                  @keyframes marker-pulse-h {
                     0%, 90%, 100%{ box-shadow: 0 0 0 0px rgba(37,99,235,0.4); }
                     25% { box-shadow: 0 0 0 3px rgba(37,99,235,0.4); }
                   }
@@ -45,7 +45,7 @@ export default function SearchArea({ map }: Props) {
                   border: 3px solid #fff;
                   border-radius: 50%;
                   box-shadow: 0 0 0 1px rgba(37,99,235,0.4);
-                  animation: marker-pulse 2s ease-in-out infinite;
+                  animation: marker-pulse-h 2s ease-in-out infinite;
                 "></div>`,
               anchor: new window.naver.maps.Point(8, 8),
             },
