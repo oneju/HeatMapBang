@@ -3,6 +3,7 @@ import { useCallback, useRef, useState } from "react";
 
 import cx from "classnames";
 import { NaverMapInstance } from "./MapControl";
+import { useRouter } from "next/navigation";
 
 interface NaverMarker {
   setMap(map: unknown): void;
@@ -12,6 +13,7 @@ interface Props {
 }
 export default function SearchArea({ map }: Props) {
   const [keyword, setKeyword] = useState("");
+  const router = useRouter();
 
   const myMarkerRef = useRef<NaverMarker | null>(null);
   const onClickAddr = useCallback(
@@ -50,12 +52,18 @@ export default function SearchArea({ map }: Props) {
               anchor: new window.naver.maps.Point(8, 8),
             },
           });
+
           map?.morph(latLng, 16);
-          // console.log(response, "----search response");
+
+          const params = new URLSearchParams();
+          params.set("lat", Number(y).toFixed(6));
+          params.set("lng", Number(x).toFixed(6));
+          params.set("zoom", "16");
+          router.replace("?" + params.toString());
         },
       );
     },
-    [map],
+    [map, router],
   );
 
   return (

@@ -65,6 +65,7 @@ export function createClusterOverlayClass(navermaps: typeof naver.maps) {
       feature: null,
       layer: null,
       clickedLatLng: naver.maps.LatLng,
+      id?: string,
     ) => void;
 
     constructor(
@@ -72,6 +73,7 @@ export function createClusterOverlayClass(navermaps: typeof naver.maps) {
         feature: null,
         layer: null,
         clickedLatLng: naver.maps.LatLng,
+        id?: string,
       ) => void,
     ) {
       super();
@@ -213,7 +215,6 @@ export function createClusterOverlayClass(navermaps: typeof naver.maps) {
       this._svg = null;
       this._clusterGroup = null;
       this._pinGroup = null;
-      this.onAdd();
     }
 
     private _computeClusters(
@@ -329,7 +330,8 @@ export function createClusterOverlayClass(navermaps: typeof naver.maps) {
     private _renderPins(proj: naver.maps.MapSystemProjection) {
       const key = (d: RealtorPoint | BuildingPin) =>
         isBuildingPin(d) ? d.id : d.lat + "," + d.lon;
-
+      if (!this._pinGroup) return;
+      console.log(this._pinGroup, "------pingourp");
       const pins = select(this._pinGroup!)
         .selectAll<SVGGElement, RealtorPoint | BuildingPin>("g.pin")
         .data(this._points, key);
@@ -343,11 +345,15 @@ export function createClusterOverlayClass(navermaps: typeof naver.maps) {
         .style("pointer-events", "all")
         .style("cursor", "pointer");
 
+      const self = this;
       entered.each(function (d) {
         const g = select(this);
         if (isBuildingPin(d)) {
           // 건물 카드 핀: 컬러 배경 + 이름 + 상태
-          const rect = g.append("rect").attr("rx", 6).attr("fill", COLORS[d.index]);
+          const rect = g
+            .append("rect")
+            .attr("rx", 6)
+            .attr("fill", COLORS[d.index]);
           // 아래 삼각형 꼬리 — tip을 (0,0)에 맞춤
           g.append("path")
             .attr(
@@ -358,7 +364,10 @@ export function createClusterOverlayClass(navermaps: typeof naver.maps) {
             .attr("transform", `translate(-${PIN_TRI_CX}, -${PIN_TRI_H})`);
 
           const textGroup = g.append("g");
-          const nameEl = textGroup.append("text").text(d.name).attr("class", "pin_name");
+          const nameEl = textGroup
+            .append("text")
+            .text(d.name)
+            .attr("class", "pin_name");
           const contentEl = textGroup
             .append("text")
             .text(d.content)
@@ -366,8 +375,12 @@ export function createClusterOverlayClass(navermaps: typeof naver.maps) {
             .attr("dy", "16");
 
           // 텍스트 너비 측정 후 rect 너비 결정
-          const nameW = (nameEl.node() as SVGTextElement).getComputedTextLength();
-          const contentW = (contentEl.node() as SVGTextElement).getComputedTextLength();
+          const nameW = (
+            nameEl.node() as SVGTextElement
+          ).getComputedTextLength();
+          const contentW = (
+            contentEl.node() as SVGTextElement
+          ).getComputedTextLength();
           const rawW = Math.max(nameW, contentW) + PIN_PAD_X * 2;
           const rectW = Math.min(Math.max(rawW, PIN_MIN_W), PIN_MAX_W);
           const maxTextW = rectW - PIN_PAD_X * 2;
@@ -378,7 +391,11 @@ export function createClusterOverlayClass(navermaps: typeof naver.maps) {
             while (s.length > 0) {
               s = s.slice(0, -1);
               nameEl.text(s + "…");
-              if ((nameEl.node() as SVGTextElement).getComputedTextLength() <= maxTextW) break;
+              if (
+                (nameEl.node() as SVGTextElement).getComputedTextLength() <=
+                maxTextW
+              )
+                break;
             }
           }
 
@@ -400,6 +417,26 @@ export function createClusterOverlayClass(navermaps: typeof naver.maps) {
             .attr("filter", "url(#blur-" + d.index + ")");
           g.append("title").text(d.name);
         }
+
+        let startX = 0;
+        let startY = 0;
+        g.on("mousedown", (event) => {
+          startX = event.clientX;
+          startY = event.clientY;
+        }).on("mouseup", (event) => {
+          if (
+            Math.abs(event.clientX - startX) >= 5 ||
+            Math.abs(event.clientY - startY) >= 5
+          )
+            return;
+          const proj = self.getProjection();
+          const pixel = new naver.maps.Point(event.offsetX, event.offsetY);
+          const clickedLatLng = proj.fromOffsetToCoord(
+            pixel,
+          ) as naver.maps.LatLng;
+          const id = isBuildingPin(d) ? d.id : undefined;
+          self._onClickFeature(null, null, clickedLatLng, id);
+        });
       });
 
       pins.merge(entered).attr("transform", (d) => {

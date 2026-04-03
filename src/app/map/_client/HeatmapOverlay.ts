@@ -132,7 +132,6 @@ export function createHeatmapOverlayClass(navermaps: typeof naver.maps) {
       this._svg?.parentNode?.removeChild(this._svg);
       this._svg = null;
       this._layers = { sido: null, sigungu: null, dong: null };
-      this.onAdd();
     }
 
     /**

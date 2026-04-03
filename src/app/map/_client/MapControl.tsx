@@ -8,6 +8,8 @@ interface NaverMarker {
 
 export interface NaverMapInstance {
   morph(latLng: unknown, zoom: number): void;
+  getZoom(): number;
+  setZoom(zoom: number, animate?: boolean): void;
 }
 
 interface Props {
@@ -68,29 +70,29 @@ export default function MapControl({ map }: Props) {
   }, [map]);
 
   return (
-    <button
-      onClick={moveToMyLocation}
-      disabled={locating}
-      style={{
-        position: "absolute",
-        bottom: 40,
-        right: 16,
-        zIndex: 100,
-        width: 44,
-        height: 44,
-        borderRadius: "50%",
-        background: "#fff",
-        border: "1px solid #ddd",
-        boxShadow: "0 2px 6px rgba(0,0,0,0.2)",
-        cursor: locating ? "wait" : "pointer",
-        display: "flex",
-        alignItems: "center",
-        justifyContent: "center",
-        fontSize: 20,
-      }}
-      title="내 위치로 이동"
-    >
-      {locating ? "⏳" : "📍"}
-    </button>
+    <div className="right-btn-group">
+      <div className="switch btn">
+        <button
+          onClick={() => map.setZoom(Math.min(map.getZoom() + 1, 19), true)}
+        >
+          +
+        </button>
+        <button
+          onClick={() => map.setZoom(Math.max(map.getZoom() - 1, 1), true)}
+        >
+          -
+        </button>
+      </div>
+      <div className="switch btn">
+        <button
+          onClick={moveToMyLocation}
+          disabled={locating}
+          title="내 위치로 이동"
+          style={{ cursor: locating ? "wait" : "pointer" }}
+        >
+          {locating ? "⏳" : "📍"}
+        </button>
+      </div>
+    </div>
   );
 }

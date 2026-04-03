@@ -9,8 +9,9 @@ import {
   useLayoutEffect,
 } from "react";
 import { useQuery } from "@tanstack/react-query";
+import { useRouter, useSearchParams } from "next/navigation";
 import MapControl, { NaverMapInstance } from "./MapControl";
-import SearchArea from "./SearchArea";
+import { useSetMap } from "./MapContext";
 import {
   NaverMap as Map,
   Container,
@@ -20,7 +21,11 @@ import {
 } from "react-naver-maps";
 import { regionValueMap, buildColorScale, REGION_NAME_KEY } from "./regionData";
 import { createHeatmapOverlayClass, GeoFeature } from "./HeatmapOverlay";
-import { createClusterOverlayClass, RealtorPoint, BuildingPin } from "./ClusterOverlay";
+import {
+  createClusterOverlayClass,
+  RealtorPoint,
+  BuildingPin,
+} from "./ClusterOverlay";
 
 // dynamic import가 완료되는 즉시 Naver 스크립트 로딩 시작 (직렬 → 병렬)
 preloadNavermaps({
@@ -37,6 +42,8 @@ function NaverMapInner() {
     ReturnType<typeof createClusterOverlayClass>
   > | null>(null);
   const [mapInstance, setMapInstance] = useState<NaverMapInstance | null>(null);
+  const setMapContext = useSetMap();
+  const mapInitializedRef = useRef(false);
   const [mapParams, setMapParams] = useState<{
     box: string;
     layer: string;
@@ -48,6 +55,33 @@ function NaverMapInner() {
     zoom: number;
   } | null>(null);
   const navermaps = useNavermaps();
+  const navermapsRef = useRef(navermaps);
+  useEffect(() => {
+    navermapsRef.current = navermaps;
+  }, [navermaps]);
+
+  const router = useRouter();
+  const searchParams = useSearchParams();
+  const routerRef = useRef(router);
+  const searchParamsRef = useRef(searchParams);
+  useEffect(() => {
+    routerRef.current = router;
+  }, [router]);
+  useEffect(() => {
+    searchParamsRef.current = searchParams;
+  }, [searchParams]);
+
+  // ── searchParams 변경 → 지도 이동 (초기 진입 제외)
+  useEffect(() => {
+    if (!mapInitializedRef.current) return; // handleInit 전에는 무시
+    const map = mapRef.current;
+    if (!map) return;
+    const lat = parseFloat(searchParams.get("lat") ?? "");
+    const lng = parseFloat(searchParams.get("lng") ?? "");
+    const zoom = parseInt(searchParams.get("zoom") ?? "16", 10);
+    if (isNaN(lat) || isNaN(lng)) return;
+    map.morph(new naver.maps.LatLng(lat, lng), zoom);
+  }, [searchParams]);
 
   const getLayer = (zoom: number): string | null => {
     if (zoom >= 13) return "dong";
@@ -141,17 +175,16 @@ function NaverMapInner() {
   useEffect(() => {
     return () => {
       console.log("[NaverMap] unmount, removing overlay");
+      setMapContext(null);
       overlayRef.current?.setMap(null);
       clusterOverlayRef.current?.setMap(null);
     };
-  }, []);
+  }, [setMapContext]);
 
   // ── 지도 이동/줌 시 mapParams + mapCenter 업데이트 ────────────────────────
   const updateMapParams = useCallback((map: naver.maps.Map) => {
     const zoom = map.getZoom();
     const layer = getLayer(zoom);
-
-    console.log(zoom, "-----zooooooooo");
 
     if (!layer) {
       overlayRef.current?.clearLayer("sido");
@@ -186,46 +219,77 @@ function NaverMapInner() {
     if (!map) return;
 
     setMapInstance(map as unknown as NaverMapInstance);
+    setMapContext(map);
 
-    // 폴리곤 클릭 시 해당 지역 중심으로 zoom
+    // padding 명시적 적용 — prop 전달은 생성 타이밍에 따라 무시될 수 있음
+    map.setOptions({ padding: { top: 60, left: 420 } });
+
+    // 초기 searchParams → 지도 이동 (map이 준비된 이후 실행)
+    const sp = searchParamsRef.current;
+    const lat = parseFloat(sp.get("lat") ?? "");
+    const lng = parseFloat(sp.get("lng") ?? "");
+    const zoom = parseInt(sp.get("zoom") ?? "16", 10);
+    if (!isNaN(lat) && !isNaN(lng)) {
+      map.setCenter(new naver.maps.LatLng(lat, lng));
+      map.setZoom(zoom);
+    }
+    mapInitializedRef.current = true;
+
+    // 클릭 시 searchParams 업데이트 → useEffect가 감지해서 map.morph()
     const onClickFeature = (
       feature: GeoFeature | null,
       layer: string | null,
       clickedLatLng: naver.maps.LatLng,
+      id?: string,
     ) => {
       const zoom = map.getZoom();
       const zoomTarget = Math.min(zoom + (!!feature ? 4 : 3), 18);
-      if (clickedLatLng) return map.morph(clickedLatLng, zoomTarget);
-      if (!feature) return;
-      const geom = feature.geometry;
-      if (!geom) return;
 
-      // MultiPolygon/Polygon 모두 첫 번째 ring의 bbox 중심으로 계산
-      const firstRing =
-        geom.type === "Polygon" ? geom.coordinates[0] : geom.coordinates[0][0];
+      let targetLatLng = clickedLatLng;
 
-      const lats = firstRing.map(([, lat]) => lat);
-      const lngs = firstRing.map(([lng]) => lng);
-      const center = new naver.maps.LatLng(
-        (Math.min(...lats) + Math.max(...lats)) / 2,
-        (Math.min(...lngs) + Math.max(...lngs)) / 2,
-      );
+      if (!targetLatLng && feature?.geometry) {
+        const geom = feature.geometry;
+        const firstRing =
+          geom.type === "Polygon"
+            ? geom.coordinates[0]
+            : geom.coordinates[0][0];
+        const lats = firstRing.map(([, lat]) => lat);
+        const lngs = firstRing.map(([lng]) => lng);
+        targetLatLng = new naver.maps.LatLng(
+          (Math.min(...lats) + Math.max(...lats)) / 2,
+          (Math.min(...lngs) + Math.max(...lngs)) / 2,
+        );
+      }
 
-      map.morph(clickedLatLng || center, zoomTarget);
+      if (!targetLatLng) return;
+
+      const params = new URLSearchParams(searchParamsRef.current.toString());
+      params.set("lat", targetLatLng.lat().toFixed(6));
+      params.set("lng", targetLatLng.lng().toFixed(6));
+      params.set("zoom", String(zoomTarget));
+      if (id) {
+        routerRef.current.replace(
+          `/map/building/${id}/0/0?` + params.toString(),
+        );
+      } else {
+        params.delete("id");
+        routerRef.current.replace("?" + params.toString());
+      }
     };
 
-    const HeatmapOverlay = createHeatmapOverlayClass(navermaps);
+    const nm = navermapsRef.current;
+    const HeatmapOverlay = createHeatmapOverlayClass(nm);
     const overlay = new HeatmapOverlay(onClickFeature);
     overlay.setMap(map);
     overlayRef.current = overlay;
 
-    const ClusterOverlay = createClusterOverlayClass(navermaps);
+    const ClusterOverlay = createClusterOverlayClass(nm);
     const clusterOverlay = new ClusterOverlay(onClickFeature);
     clusterOverlay.setMap(map);
     clusterOverlayRef.current = clusterOverlay;
 
     updateMapParams(map);
-  }, [navermaps, updateMapParams]);
+  }, [updateMapParams, setMapContext]);
 
   const handleIdle = useCallback(() => {
     const map = mapRef.current;
@@ -235,8 +299,7 @@ function NaverMapInner() {
 
   return (
     <>
-      {mapInstance && <SearchArea map={mapInstance} />}
-      <div style={{ position: "relative", width: "100vw", height: "100vh" }}>
+      <div style={{ position: "absolute", inset: 0 }}>
         <Container className="MainMap">
           <Map
             ref={mapRef}
@@ -251,19 +314,18 @@ function NaverMapInner() {
             mapDataControl={false}
             mapTypeControl={false}
             zoomControl={false}
-            zoomControlOptions={{
-              style: navermaps.ZoomControlStyle.SMALL,
-              position: navermaps.Position.LEFT_TOP,
-            }}
+            // zoomControlOptions={{
+            //   style: navermaps.ZoomControlStyle.SMALL,
+            //   position: navermaps.Position.TOP_RIGHT,
+            // }}
             maxZoom={19}
             minZoom={8}
             background="#e8e4d9"
             onInit={handleInit}
             onIdle={handleIdle}
-          >
-            {mapInstance && <MapControl map={mapInstance} />}
-          </Map>
+          />
         </Container>
+        {mapInstance && <MapControl map={mapInstance} />}
         {isFetching && (
           <div
             style={{
